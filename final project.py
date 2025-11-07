@@ -2,110 +2,153 @@
 # Malakor Eng Utility App 
 # =============================
 
-def is_vowel(c):
-    return c.lower() in "aeiou"
+def is_vowel(character: str) -> bool:
+    """Check if a character is a vowel."""
+    return character.lower() in "aeiou"
 
-def split_syllables(word):
-    vowels = "aeiou" 
+
+def split_syllables(word: str) -> list[str]:
+    """Split an English word into approximate syllables."""
+    vowels = "aeiou"
     consonants = "bcdfghjklmnpqrstvwxyz"
     word_lower = word.lower()
-    syllables = []
+    syllable_list = []
 
-    # Edge cases: short word <=3, consonant+e, word ends with y
-    if len(word) <= 3 or (
-        len(word) >= 2 and word_lower[-2] in consonants and word_lower[-1] == "e"
-        ) or word_lower.endswith("y"):
+    # Handle short or special-case words
+    if (
+        len(word) <= 3
+        or (
+            len(word) >= 2
+            and word_lower[-2] in consonants
+            and word_lower[-1] == "e"
+        )
+        or word_lower.endswith("y")
+    ):
         return [word_lower]
 
-    i = 0
-    length = len(word_lower)
-    while i < length:
-        start = i
+    position = 0
+    word_length = len(word_lower)
+
+    while position < word_length:
+        start_index = position
+
         # Leading consonants
-        while i < length and word_lower[i] in consonants:
-            i += 1
+        while position < word_length and word_lower[position] in consonants:
+            position += 1
+
         # At least one vowel
-        if i < length and is_vowel(word_lower[i]):
-            i += 1
+        if position < word_length and is_vowel(word_lower[position]):
+            position += 1
+
         # Trailing consonants until next vowel
-        while i < length and (i+1 >= length or not is_vowel(word_lower[i+1])):
-            i += 1
-        syllables.append(word_lower[start:i])
-    return syllables
+        while (
+            position < word_length
+            and (position + 1 >= word_length or not is_vowel(
+                word_lower[position + 1]
+            ))
+        ):
+            position += 1
+
+        syllable_list.append(word_lower[start_index:position])
+
+    return syllable_list
+
 
 # =============== EN → MALAKOR ===============
-def malakor_eng(word):
-    syllables = split_syllables(word)
+
+def convert_english_to_malakor(word: str) -> str:
+    """Convert an English word to Malakor Eng format."""
+    syllable_list = split_syllables(word)
     consonants = "bcdfghjklmnpqrstvwxyz"
     malakor_syllables = []
 
-    for syl in syllables:
-        if not syl:
+    for syllable in syllable_list:
+        if not syllable:
             continue
 
-        cluster = ""
-        rest = syl
-        max_cluster_len = min(3, len(syl))
-        consonants_lower = set(consonants)
+        consonant_cluster = ""
+        remainder = syllable
+        max_cluster_length = min(3, len(syllable))
+        consonant_set = set(consonants)
 
-        # Short word or ends with y -> cluster = first consonant
-        if len(syl) <= 3 or syl.endswith("y"):
-            cluster = syl[0]
-            rest = syl[1:]
+        # Handle short word or ending with 'y'
+        if len(syllable) <= 3 or syllable.endswith("y"):
+            consonant_cluster = syllable[0]
+            remainder = syllable[1:]
         else:
-            # Find cluster at start
-            for j in range(max_cluster_len, 0, -1):
-                if all(c.lower() in consonants_lower for c in syl[:j]):
-                    cluster = syl[:j]
-                    rest = syl[j:]
+            # Detect leading consonant cluster
+            for cluster_length in range(max_cluster_length, 0, -1):
+                if all(
+                    char.lower() in consonant_set
+                    for char in syllable[:cluster_length]
+                ):
+                    consonant_cluster = syllable[:cluster_length]
+                    remainder = syllable[cluster_length:]
                     break
-            if not cluster:
-                cluster = syl[0]
-                rest = syl[1:]
 
-            # Fix for case cluster = whole syllable
-            if not rest:
-                rest = cluster
+            # Default fallback if none found
+            if not consonant_cluster:
+                consonant_cluster = syllable[0]
+                remainder = syllable[1:]
 
-        mal_syl = f"{cluster}a la g{rest}"
-        malakor_syllables.append(mal_syl)
+            # Edge case: entire syllable is consonant cluster
+            if not remainder:
+                remainder = consonant_cluster
+
+        malakor_form = f"{consonant_cluster}a la g{remainder}"
+        malakor_syllables.append(malakor_form)
 
     return " / ".join(malakor_syllables)
-  
-# =============== MALAKOR → EN  ===================
-def eng_from_malakor(mal_text):
-    mal_text = mal_text.lower().strip()
-    # Split by '/' or '  ' (two or more spaces)
-    parts = []
-    temp = ""
-    for ch in mal_text:
-        if ch == "/":
-            if temp.strip():
-                parts.append(temp.strip())
-            temp = ""
+
+
+# =============== MALAKOR → EN  ===============
+
+def convert_malakor_to_english(malakor_text: str) -> str:
+    """Convert Malakor Eng text back to English."""
+    malakor_text = malakor_text.lower().strip()
+
+    # Split by '/' (word separator)
+    malakor_words = []
+    current_phrase = ""
+
+    for character in malakor_text:
+        if character == "/":
+            if current_phrase.strip():
+                malakor_words.append(current_phrase.strip())
+            current_phrase = ""
         else:
-            temp += ch
-    if temp.strip():
-        parts.append(temp.strip())
+            current_phrase += character
+
+    if current_phrase.strip():
+        malakor_words.append(current_phrase.strip())
 
     english_words = []
 
-    for phrase in parts:
-        tokens = phrase.split()
-        combined = ""
-        i = 0
-        while i < len(tokens):
-            if (i + 2 < len(tokens)
-                and tokens[i + 1] == "la"
-                and tokens[i + 2].startswith("g")):
-                cluster = tokens[i][:-1] if tokens[i].endswith("a") else tokens[i]
-                rest = tokens[i + 2][1:]  # skip 'g'
-                combined += cluster + rest
-                i += 3
+    for malakor_word in malakor_words:
+        tokens = malakor_word.split()
+        reconstructed_word = ""
+        token_index = 0
+
+        while token_index < len(tokens):
+            # Pattern: "<cluster>a la g<rest>"
+            if (
+                token_index + 2 < len(tokens)
+                and tokens[token_index + 1] == "la"
+                and tokens[token_index + 2].startswith("g")
+            ):
+                cluster_part = (
+                    tokens[token_index][:-1]
+                    if tokens[token_index].endswith("a")
+                    else tokens[token_index]
+                )
+                rest_part = tokens[token_index + 2][1:]  # remove 'g'
+                reconstructed_word += cluster_part + rest_part
+                token_index += 3
             else:
-                combined += tokens[i]
-                i += 1
-        english_words.append(combined)
+                reconstructed_word += tokens[token_index]
+                token_index += 1
+
+        english_words.append(reconstructed_word)
 
     return " ".join(english_words)
 
@@ -114,7 +157,8 @@ def eng_from_malakor(mal_text):
 # Main Program
 # =============================
 
-def main():
+def main() -> None:
+    """Run the main interactive program."""
     print("==== Malakor Eng Utility App ====\n")
     print("This tool converts between English and 'Malakor Eng' language.\n")
 
@@ -124,38 +168,46 @@ def main():
     print("  2 → Exit\n")
 
     print("📘 INPUT RULES:")
-    print("- Always type as STRING (letters only, not numbers). Example: 'cat', 'sky', 'shine'.")
-    print("- For multiple English words, separate with a SPACE. Example: 'wake up'.")
-    print("- For Malakor input, separate syllables with SPACES and words with '/'.")
+    print("- Always type as STRING (letters only, not numbers). "
+          "Example: 'cat', 'sky', 'shine'.")
+    print("- For multiple English words, separate with a SPACE. "
+          "Example: 'wake up'.")
+    print("- For Malakor input, separate syllables with SPACES "
+          "and words with '/'.")
     print("  Example: 'fa la gly / ha la gigh'  →  fly high\n")
     print("- Do NOT type quotes, int, or float values — only plain text.\n")
 
     while True:
-        mode = input("Choose mode (0/1/2): ").strip()
+        mode_choice = input("Choose mode (0/1/2): ").strip()
 
-        if mode == "2":
+        if mode_choice == "2":
             print("\nGoodbye 👋")
             break
 
-        elif mode == "0":
-            text = input("\nEnter English word(s): ").strip()
-            if not text:
+        elif mode_choice == "0":
+            english_text = input("\nEnter English word(s): ").strip()
+            if not english_text:
                 print("Please enter some text!\n")
                 continue
-            words = text.split()
-            result = " | ".join(malakor_eng(w) for w in words)
-            print(f"Malakor Eng: {result}\n")
 
-        elif mode == "1":
-            text = input("\nEnter Malakor Eng text: ").strip()
-            if not text:
+            english_words = english_text.split()
+            converted_result = " | ".join(
+                convert_english_to_malakor(word) for word in english_words
+            )
+            print(f"Malakor Eng: {converted_result}\n")
+
+        elif mode_choice == "1":
+            malakor_input = input("\nEnter Malakor Eng text: ").strip()
+            if not malakor_input:
                 print("Please enter Malakor text!\n")
                 continue
-            result = eng_from_malakor(text)
-            print(f"English: {result}\n")
+
+            converted_result = convert_malakor_to_english(malakor_input)
+            print(f"English: {converted_result}\n")
 
         else:
             print("Invalid choice! Please enter 0, 1, or 2.\n")
+
 
 # =============================
 # Run
